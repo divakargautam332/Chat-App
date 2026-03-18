@@ -11,35 +11,49 @@ const initSocket = (server) => {
 
     io.on("connection", (socket) => {
         console.log("User connected:", socket.id);
-        // User joins with their userId
+
+        // ✅ JOIN (user comes online)
         socket.on("join", (userId) => {
             onlineUsers[userId] = socket.id;
+
+            console.log("User joined:", userId);
             console.log("Online Users:", onlineUsers);
-            console.log("user id", userId);
         });
 
-        // Send message to a specific user
+        // ✅ SEND MESSAGE
         socket.on("send_message", ({ senderId, receiverId, message }) => {
             const receiverSocket = onlineUsers[receiverId];
 
+            const msgData = {
+                senderId,
+                receiverId,
+                message,
+            };
+
+            console.log("Sending message:", msgData);
+
+            // 👉 Send to receiver
             if (receiverSocket) {
-                io.to(receiverSocket).emit("receive_message", {
-                    senderId,
-                    message,
-                });
+                io.to(receiverSocket).emit("receive_message", msgData);
             }
+
+            // 👉 Send back to sender (important for UI sync)
+            socket.emit("receive_message", msgData);
         });
 
-        // When user disconnects
+        // ✅ DISCONNECT (user goes offline)
         socket.on("disconnect", () => {
             for (const userId in onlineUsers) {
                 if (onlineUsers[userId] === socket.id) {
                     delete onlineUsers[userId];
+                    console.log("User offline:", userId);
+                    break;
                 }
             }
-            console.log("User disconnected:", socket.id);
-        });
 
+            console.log("User disconnected:", socket.id);
+            console.log("Online Users:", onlineUsers);
+        });
     });
 };
 

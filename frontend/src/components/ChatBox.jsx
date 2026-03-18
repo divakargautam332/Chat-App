@@ -98,8 +98,8 @@ export default function ChatBox({ receiverId }) {
                     >
                         <span
                             className={`px-3 py-1 rounded-lg max-w-xs break-words ${msg.senderId === userId
-                                    ? "bg-green-200"
-                                    : "bg-gray-200"
+                                ? "bg-green-200"
+                                : "bg-gray-200"
                                 }`}
                         >
                             {msg.message}
