@@ -15,6 +15,7 @@ const initSocket = (server) => {
         socket.on("join", (userId) => {
             onlineUsers[userId] = socket.id;
             console.log("Online Users:", onlineUsers);
+            console.log("user id", userId);
         });
 
         // Send message to a specific user

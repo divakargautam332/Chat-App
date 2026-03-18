@@ -1,22 +1,28 @@
 import { useState, useEffect, useRef } from "react";
 import { socket } from "../utils/socket";
-import API from '../services/api';
+import API from "../services/api";
 
 export default function ChatBox({ receiverId }) {
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState("");
-    // const userId = localStorage.getItem("userId");
-    // const user = localStorage.getItem("user");
+
     const user = JSON.parse(localStorage.getItem("user"));
-    const userId = user.id;
-    // console.log("userId :", userId);
-    // console.log("user :", user);
+    const userId = user?.id;
+
     const messageEndRef = useRef(null);
 
     const scrollToBottom = () => {
         messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
+    // ✅ JOIN SOCKET (VERY IMPORTANT)
+    useEffect(() => {
+        if (userId) {
+            socket.emit("join", userId);
+        }
+    }, [userId]);
+
+    // ✅ LOAD OLD MESSAGES
     useEffect(() => {
         const loadMessages = async () => {
             if (!receiverId) return;
@@ -32,17 +38,25 @@ export default function ChatBox({ receiverId }) {
         loadMessages();
     }, [receiverId]);
 
+    // ✅ RECEIVE MESSAGE (REAL-TIME)
     useEffect(() => {
-        socket.on("receive_message", (msg) => {
-            if (msg.senderId === receiverId || msg.senderId === userId) {
+        const handleMessage = (msg) => {
+            // Only show messages between these two users
+            if (
+                (msg.senderId === receiverId && msg.receiverId === userId) ||
+                (msg.senderId === userId && msg.receiverId === receiverId)
+            ) {
                 setMessages((prev) => [...prev, msg]);
                 scrollToBottom();
             }
-        });
+        };
 
-        return () => socket.off("receive_message");
+        socket.on("receive_message", handleMessage);
+
+        return () => socket.off("receive_message", handleMessage);
     }, [receiverId, userId]);
 
+    // ✅ SEND MESSAGE
     const handleSend = async () => {
         if (!newMessage.trim()) return;
 
@@ -53,11 +67,18 @@ export default function ChatBox({ receiverId }) {
         };
 
         try {
-            await API.post(`/messages/send/${receiverId}`, { message: newMessage.trim() });
+            // Save to DB
+            await API.post(`/messages/send/${receiverId}`, {
+                message: newMessage.trim(),
+            });
+
+            // Send via socket
             socket.emit("send_message", messageData);
-            setMessages((prev) => [...prev, messageData]);
+
+            // ❌ DO NOT add manually (prevents duplicate)
+            // setMessages((prev) => [...prev, messageData]);
+
             setNewMessage("");
-            scrollToBottom();
         } catch (err) {
             console.error("Failed to send message:", err);
         }
@@ -67,15 +88,18 @@ export default function ChatBox({ receiverId }) {
         <div className="max-w-md mx-auto mt-5 border border-gray-300 rounded-lg shadow-lg p-4 flex flex-col">
             <h3 className="text-xl font-semibold mb-3 text-center">Chat</h3>
 
-            {/* Chat Messages */}
+            {/* Messages */}
             <div className="flex-1 overflow-y-auto mb-3 h-80 p-2 bg-gray-50 rounded-lg">
                 {messages.map((msg, index) => (
                     <div
                         key={index}
-                        className={`mb-2 flex ${msg.senderId === userId ? "justify-end" : "justify-start"}`}
+                        className={`mb-2 flex ${msg.senderId === userId ? "justify-end" : "justify-start"
+                            }`}
                     >
                         <span
-                            className={`px-3 py-1 rounded-lg max-w-xs break-words ${msg.senderId === userId ? "bg-green-200" : "bg-gray-200"
+                            className={`px-3 py-1 rounded-lg max-w-xs break-words ${msg.senderId === userId
+                                    ? "bg-green-200"
+                                    : "bg-gray-200"
                                 }`}
                         >
                             {msg.message}
@@ -85,7 +109,7 @@ export default function ChatBox({ receiverId }) {
                 <div ref={messageEndRef} />
             </div>
 
-            {/* Input Box */}
+            {/* Input */}
             <div className="flex">
                 <input
                     type="text"
@@ -93,7 +117,7 @@ export default function ChatBox({ receiverId }) {
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Type a message..."
                     className="flex-1 border border-gray-300 rounded-l-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    onKeyPress={(e) => e.key === "Enter" && handleSend()}
+                    onKeyDown={(e) => e.key === "Enter" && handleSend()}
                 />
                 <button
                     onClick={handleSend}
